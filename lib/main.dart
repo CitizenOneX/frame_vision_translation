@@ -23,9 +23,9 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
   // stream subscription to pull application data back from camera
   StreamSubscription<Uint8List>? _imageDataResponseStream;
 
-  // the list of images to show in the scolling list view
-  final List<Image> _imageList = [];
-  final List<ImageMetadata> _imageMeta = [];
+  // the image and metadata to show
+  Image? _image;
+  ImageMetadata? _imageMeta;
   final Stopwatch _stopwatch = Stopwatch();
 
   // camera settings
@@ -75,8 +75,8 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
             _log.fine('Image file size in bytes: ${imageData.length}, elapsedMs: ${_stopwatch.elapsedMilliseconds}');
 
             setState(() {
-              _imageList.insert(0, im);
-              _imageMeta.insert(0, meta);
+              _image = im;
+              _imageMeta = meta;
             });
 
             currentState = ApplicationState.ready;
@@ -257,32 +257,26 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
             ],
           ),
         ),
-        body: Flex(
-          direction: Axis.vertical,
+        body: Column(
           children: [
-            Expanded(
-              // scrollable list view for multiple photos
-              child: ListView.separated(
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      children: [
-                        Transform(
-                          alignment: Alignment.center,
-                          transform: Matrix4.rotationZ(-pi*0.5),
-                          child: _imageList[index]
-                        ),
-                        _imageMeta[index],
-                      ],
-                    )
-                  );
-                },
-                separatorBuilder: (context, index) => const Divider(height: 30),
-                itemCount: _imageList.length,
-              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  Transform(
+                    alignment: Alignment.center,
+                    // images are rotated 90 degrees clockwise from the Frame
+                    // so reverse that for display
+                    transform: Matrix4.rotationZ(-pi*0.5),
+                    child: _image,
+                  ),
+                  const Divider(),
+                  if (_imageMeta != null) _imageMeta!,
+                ],
+              )
             ),
-          ]
+            const Divider(),
+          ],
         ),
         floatingActionButton: getFloatingActionButtonWidget(const Icon(Icons.camera_alt), const Icon(Icons.cancel)),
         persistentFooterButtons: getFooterButtonsWidget(),
