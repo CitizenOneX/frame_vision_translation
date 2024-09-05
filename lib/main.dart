@@ -20,8 +20,6 @@ class MainApp extends StatefulWidget {
 }
 
 class MainAppState extends State<MainApp> with SimpleFrameAppState {
-  // stream subscription to pull application data back from camera
-  StreamSubscription<Uint8List>? _imageDataResponseStream;
 
   // the image and metadata to show
   Image? _image;
@@ -52,53 +50,47 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
     currentState = ApplicationState.running;
     if (mounted) setState(() {});
 
-    try {
-      // the image data as a list of bytes that accumulates with each packet
-      ImageMetadata meta = ImageMetadata(_qualityValues[_qualityIndex].toInt(), _autoExpGainTimes, _meteringModeValues[_meteringModeIndex], _exposure, _shutterKp, _shutterLimit, _gainKp, _gainLimit);
+    // keep looping, taking photos and displaying, until user clicks cancel
+    while (currentState == ApplicationState.running) {
 
       try {
-        // set up the data response handler for the photos
-        _imageDataResponseStream = imageDataResponse(frame!.dataResponse, _qualityValues[_qualityIndex].toInt()).listen((imageData) {
-          // received a whole-image Uint8List with jpeg header and footer included
-          _stopwatch.stop();
+        // the image data as a list of bytes that accumulates with each packet
+        ImageMetadata meta = ImageMetadata(_qualityValues[_qualityIndex].toInt(), _autoExpGainTimes, _meteringModeValues[_meteringModeIndex], _exposure, _shutterKp, _shutterLimit, _gainKp, _gainLimit);
 
-          // unsubscribe from the image stream now (to also release the underlying data stream subscription)
-          _imageDataResponseStream?.cancel();
+        // send the lua command to request a photo from the Frame
+        _stopwatch.reset();
+        _stopwatch.start();
+        await frame!.sendDataRaw(CameraSettingsMsg.pack(_qualityIndex, _autoExpGainTimes, _meteringModeIndex, _exposure, _shutterKp, _shutterLimit, _gainKp, _gainLimit));
 
-          try {
-            Image im = Image.memory(imageData);
+        // synchronously await the image response
+        Uint8List imageData = await imageDataResponse(frame!.dataResponse, _qualityValues[_qualityIndex].toInt()).first;
 
-            // add the size and elapsed time to the image metadata widget
-            meta.size = imageData.length;
-            meta.elapsedTimeMs = _stopwatch.elapsedMilliseconds;
+        // received a whole-image Uint8List with jpeg header and footer included
+        _stopwatch.stop();
 
-            _log.fine('Image file size in bytes: ${imageData.length}, elapsedMs: ${_stopwatch.elapsedMilliseconds}');
+        try {
+          Image im = Image.memory(imageData, gaplessPlayback: true,);
 
-            setState(() {
-              _image = im;
-              _imageMeta = meta;
-            });
+          // add the size and elapsed time to the image metadata widget
+          meta.size = imageData.length;
+          meta.elapsedTimeMs = _stopwatch.elapsedMilliseconds;
 
-            currentState = ApplicationState.ready;
-            if (mounted) setState(() {});
+          _log.fine('Image file size in bytes: ${imageData.length}, elapsedMs: ${_stopwatch.elapsedMilliseconds}');
 
-          } catch (e) {
-            _log.severe('Error converting bytes to image: $e');
-          }
-        });
+          setState(() {
+            _image = im;
+            _imageMeta = meta;
+          });
+
+          // Perform vision processing pipeline
+
+        } catch (e) {
+          _log.severe('Error converting bytes to image: $e');
+        }
+
       } catch (e) {
-        _log.severe('Error reading image data response: $e');
-        // unsubscribe from the image stream now (to also release the underlying data stream subscription)
-        _imageDataResponseStream?.cancel();
+        _log.severe('Error executing application: $e');
       }
-
-      // send the lua command to request a photo from the Frame
-      _stopwatch.reset();
-      _stopwatch.start();
-      await frame!.sendDataRaw(CameraSettingsMsg.pack(_qualityIndex, _autoExpGainTimes, _meteringModeIndex, _exposure, _shutterKp, _shutterLimit, _gainKp, _gainLimit));
-    }
-    catch (e) {
-      _log.severe('Error executing application: $e');
     }
   }
 
