@@ -81,12 +81,16 @@ function _M.process_raw_items()
 
     for flag, block in pairs(app_data_block) do
         -- parse the app_data_block item into an app_data item
-        app_data[flag] = parsers[flag](block)
+        if parsers[flag] == nil then
+            print('Error: No parser for flag: ' .. tostring(flag))
+        else
+            app_data[flag] = parsers[flag](block)
 
-        -- then clear out the raw data
-        app_data_block[flag] = nil
+            -- then clear out the raw data
+            app_data_block[flag] = nil
 
-        processed = processed + 1
+            processed = processed + 1
+        end
     end
 
     return processed
