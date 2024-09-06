@@ -55,7 +55,7 @@ Stream<Uint8List> imageDataResponse(Stream<List<int>> dataResponse, int qualityL
           imageData.clear();
           rawOffset = 0;
         }
-        _log.fine('Chunk size: ${data.length-1}, rawOffset: $rawOffset');
+        _log.finer('Chunk size: ${data.length-1}, rawOffset: $rawOffset');
       },
       onDone: controller.close,
       onError: controller.addError);
