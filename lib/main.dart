@@ -27,7 +27,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
   final Stopwatch _stopwatch = Stopwatch();
 
   // camera settings
-  int _qualityIndex = 2;
+  int _qualityIndex = 0;
   final List<double> _qualityValues = [10, 25, 50, 100];
   double _exposure = 0.0; // -2.0 <= val <= 2.0
   int _meteringModeIndex = 0;
@@ -74,6 +74,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
           // image_lib.Image? im = image_lib.decodeJpg(imageData);
           // im = image_lib.copyRotate(im, angle: 270);
 
+          // update Widget UI
           Image im = Image.memory(imageData, gaplessPlayback: true,);
 
           // add the size and elapsed time to the image metadata widget
