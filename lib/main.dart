@@ -69,6 +69,11 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
         _stopwatch.stop();
 
         try {
+          // NOTE: Frame camera is rotated 90 degrees clockwise, so if we need to make it upright for image processing:
+          // import 'package:image/image.dart' as image_lib;
+          // image_lib.Image? im = image_lib.decodeJpg(imageData);
+          // im = image_lib.copyRotate(im, angle: 270);
+
           Image im = Image.memory(imageData, gaplessPlayback: true,);
 
           // add the size and elapsed time to the image metadata widget
