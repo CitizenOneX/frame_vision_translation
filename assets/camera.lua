@@ -5,17 +5,23 @@ _M = {}
 local IMAGE_MSG = 0x07
 local IMAGE_FINAL_MSG = 0x08
 
-function clear_display()
-    frame.display.text(" ", 1, 1)
-    frame.display.show()
-    frame.sleep(0.04)
-end
+-- parse the camera_settings message from the host into a table we can use with the camera_capture_and_send function
+function _M.parse_camera_settings(data)
+	local quality_values = {10, 25, 50, 100}
+	local metering_values = {'SPOT', 'CENTER_WEIGHTED', 'AVERAGE'}
 
-function show_flash()
-	frame.display.bitmap(241, 191, 160, 2, 0, string.rep("\xFF", 400))
-	frame.display.bitmap(311, 121, 20, 2, 0, string.rep("\xFF", 400))
-    frame.display.show()
-    frame.sleep(0.04)
+	local camera_settings = {}
+	-- quality and metering mode are indices into arrays of values (0-based phoneside; 1-based in Lua)
+	-- exposure maps from 0..255 to -2.0..+2.0
+	camera_settings.quality = quality_values[string.byte(data, 1) + 1]
+	camera_settings.auto_exp_gain_times = string.byte(data, 2)
+	camera_settings.metering_mode = metering_values[string.byte(data, 3) + 1]
+	camera_settings.exposure = (string.byte(data, 4) - 128) / 64.0
+	camera_settings.shutter_kp = string.byte(data, 5) / 10.0
+	camera_settings.shutter_limit = string.byte(data, 6) << 8 | string.byte(data, 7)
+	camera_settings.gain_kp = string.byte(data, 8) / 10.0
+	camera_settings.gain_limit = string.byte(data, 9)
+	return camera_settings
 end
 
 function _M.camera_capture_and_send(args)
@@ -33,9 +39,7 @@ function _M.camera_capture_and_send(args)
 		frame.sleep(0.1)
 	end
 
-	show_flash()
 	frame.camera.capture { quality_factor = quality }
-	clear_display()
 	-- wait until the capture is finished and the image is ready before continuing
 	while not frame.camera.image_ready() do
 		frame.sleep(0.05)
