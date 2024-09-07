@@ -54,7 +54,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
     while (currentState == ApplicationState.running) {
 
       try {
-        // the image data as a list of bytes that accumulates with each packet
+        // the image metadata (camera settings) to show under the image
         ImageMetadata meta = ImageMetadata(_qualityValues[_qualityIndex].toInt(), _autoExpGainTimes, _meteringModeValues[_meteringModeIndex], _exposure, _shutterKp, _shutterLimit, _gainKp, _gainLimit);
 
         // send the lua command to request a photo from the Frame
