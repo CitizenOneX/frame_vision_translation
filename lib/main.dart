@@ -4,8 +4,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:simple_frame_app/rx/photo.dart';
 import 'package:simple_frame_app/tx/camera_settings.dart';
-import 'package:simple_frame_app/image_data_response.dart';
 import 'package:simple_frame_app/simple_frame_app.dart';
 
 void main() => runApp(const MainApp());
@@ -73,7 +73,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
         ));
 
         // synchronously await the image response
-        Uint8List imageData = await imageDataResponse(frame!.dataResponse, _qualityValues[_qualityIndex].toInt()).first;
+        Uint8List imageData = await RxPhoto(qualityLevel: _qualityValues[_qualityIndex].toInt()).attach(frame!.dataResponse).first;
 
         // received a whole-image Uint8List with jpeg header and footer included
         _stopwatch.stop();
