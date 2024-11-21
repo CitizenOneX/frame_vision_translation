@@ -31,11 +31,11 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
   final List<double> _qualityValues = [10, 25, 50, 100];
   int _meteringIndex = 2;
   final List<String> _meteringValues = ['SPOT', 'CENTER_WEIGHTED', 'AVERAGE'];
-  int _autoExpGainTimes = 1; // val >= 0; number of times auto exposure and gain algorithm will be run every 100ms
+  int _autoExpGainTimes = 2; // val >= 0; number of times auto exposure and gain algorithm will be run every 100ms
   double _exposure = 0.18; // 0.0 <= val <= 1.0
   double _exposureSpeed = 0.5;  // 0.0 <= val <= 1.0
-  int _shutterLimit = 800; // 4 < val < 16383
-  int _analogGainLimit = 248;     // 0 <= val <= 248
+  int _shutterLimit = 16383; // 4 < val < 16383
+  int _analogGainLimit = 1;     // 0 (1?) <= val <= 248
   double _whiteBalanceSpeed = 0.5;  // 0.0 <= val <= 1.0
 
   MainAppState() {
@@ -46,9 +46,17 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // kick off the connection to Frame and start the app if possible
+    tryScanAndConnectAndStart(andRun: true);
+  }
+
+  @override
   Future<void> run() async {
-    currentState = ApplicationState.running;
-    if (mounted) setState(() {});
+    setState(() {
+      currentState = ApplicationState.running;
+    });
 
     // keep looping, taking photos and displaying, until user clicks cancel
     while (currentState == ApplicationState.running) {
@@ -91,7 +99,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
           meta.size = imageData.length;
           meta.elapsedTimeMs = _stopwatch.elapsedMilliseconds;
 
-          _log.fine('Image file size in bytes: ${imageData.length}, elapsedMs: ${_stopwatch.elapsedMilliseconds}');
+          _log.fine(() => 'Image file size in bytes: ${imageData.length}, elapsedMs: ${_stopwatch.elapsedMilliseconds}');
 
           setState(() {
             _image = im;
@@ -102,10 +110,17 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
 
         } catch (e) {
           _log.severe('Error converting bytes to image: $e');
+          setState(() {
+            currentState = ApplicationState.ready;
+          });
+
         }
 
       } catch (e) {
         _log.severe('Error executing application: $e');
+        setState(() {
+          currentState = ApplicationState.ready;
+        });
       }
     }
   }
@@ -113,8 +128,9 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
   /// cancel the current photo
   @override
   Future<void> cancel() async {
-    currentState = ApplicationState.ready;
-    if (mounted) setState(() {});
+    setState(() {
+      currentState = ApplicationState.ready;
+    });
   }
 
   @override
@@ -124,7 +140,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
       theme: ThemeData.dark(),
       home: Scaffold(
         appBar: AppBar(
-          title: const Text("Frame Vision"),
+          title: const Text('Frame Vision'),
           actions: [getBatteryWidget()]
         ),
         drawer: Drawer(
