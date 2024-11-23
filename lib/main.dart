@@ -5,8 +5,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:simple_frame_app/rx/photo.dart';
+import 'package:simple_frame_app/rx/tap.dart';
 import 'package:simple_frame_app/tx/camera_settings.dart';
 import 'package:simple_frame_app/simple_frame_app.dart';
+import 'package:simple_frame_app/tx/code.dart';
+import 'package:simple_frame_app/tx/plain_text.dart';
 
 void main() => runApp(const MainApp());
 
@@ -38,8 +41,11 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
   int _analogGainLimit = 1;     // 0 (1?) <= val <= 248
   double _whiteBalanceSpeed = 0.5;  // 0.0 <= val <= 1.0
 
+  // tap subscription
+  StreamSubscription<int>? _tapSubs;
+
   MainAppState() {
-    Logger.root.level = Level.INFO;
+    Logger.root.level = Level.FINE;
     Logger.root.onRecord.listen((record) {
       debugPrint('${record.level.name}: ${record.time}: ${record.message}');
     });
@@ -58,76 +64,117 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
       currentState = ApplicationState.running;
     });
 
-    // keep looping, taking photos and displaying, until user clicks cancel
-    while (currentState == ApplicationState.running) {
+    // listen for taps for next(1)/prev(2) content and "new vision capture" (3)
+    _tapSubs?.cancel();
+    _tapSubs = RxTap().attach(frame!.dataResponse)
+      .listen((taps) async {
+        _log.fine(() => 'taps: $taps');
+        switch (taps) {
+          case 1:
+            // next
+            break;
+          case 2:
+            // prev
+            break;
+          case 3:
+            // start new vision capture
+            await runCaptureAndProcess();
+            break;
+          default:
+        }
+      }
+    );
+
+    // let Frame know to subscribe for taps and send them to us
+    await frame!.sendMessage(TxCode(msgCode: 0x10, value: 1));
+
+    // prompt the user to begin tapping
+    await frame!.sendMessage(TxPlainText(msgCode: 0x0a, text: '3-Tap: new photo\n____________\n1-Tap: next\n2-Tap: previous'));
+
+    // run() completes but we stay in ApplicationState.running because the tap listener is active
+  }
+
+  /// The vision pipeline to run when triple-tapped
+  Future<void> runCaptureAndProcess() async {
+    // Some apps might start a while (state==running) loop here that needs to be canceled to finish
+    // but here we will just request one photo and do our processing
+
+    try {
+      // the image metadata (camera settings) to show under the image
+      ImageMetadata meta = ImageMetadata(_qualityValues[_qualityIndex].toInt(), _autoExpGainTimes, _meteringValues[_meteringIndex], _exposure, _exposureSpeed, _shutterLimit, _analogGainLimit, _whiteBalanceSpeed);
+
+      // send the lua command to request a photo from the Frame
+      _stopwatch.reset();
+      _stopwatch.start();
+      await frame!.sendMessage(TxCameraSettings(
+        msgCode: 0x0d,
+        qualityIndex: _qualityIndex,
+        autoExpGainTimes: _autoExpGainTimes,
+        meteringIndex: _meteringIndex,
+        exposure: _exposure,
+        exposureSpeed: _exposureSpeed,
+        shutterLimit: _shutterLimit,
+        analogGainLimit: _analogGainLimit,
+        whiteBalanceSpeed: _whiteBalanceSpeed,
+      ));
+
+      // synchronously await the image response
+      Uint8List imageData = await RxPhoto(qualityLevel: _qualityValues[_qualityIndex].toInt()).attach(frame!.dataResponse).first;
+
+      // received a whole-image Uint8List with jpeg header and footer included
+      _stopwatch.stop();
 
       try {
-        // the image metadata (camera settings) to show under the image
-        ImageMetadata meta = ImageMetadata(_qualityValues[_qualityIndex].toInt(), _autoExpGainTimes, _meteringValues[_meteringIndex], _exposure, _exposureSpeed, _shutterLimit, _analogGainLimit, _whiteBalanceSpeed);
+        // NOTE: Frame camera is rotated 90 degrees clockwise, so if we need to make it upright for image processing:
+        // import 'package:image/image.dart' as image_lib;
+        // image_lib.Image? im = image_lib.decodeJpg(imageData);
+        // im = image_lib.copyRotate(im, angle: 270);
 
-        // send the lua command to request a photo from the Frame
-        _stopwatch.reset();
-        _stopwatch.start();
-        await frame!.sendMessage(TxCameraSettings(
-          msgCode: 0x0d,
-          qualityIndex: _qualityIndex,
-          autoExpGainTimes: _autoExpGainTimes,
-          meteringIndex: _meteringIndex,
-          exposure: _exposure,
-          exposureSpeed: _exposureSpeed,
-          shutterLimit: _shutterLimit,
-          analogGainLimit: _analogGainLimit,
-          whiteBalanceSpeed: _whiteBalanceSpeed,
-        ));
+        // update Widget UI
+        Image im = Image.memory(imageData, gaplessPlayback: true,);
 
-        // synchronously await the image response
-        Uint8List imageData = await RxPhoto(qualityLevel: _qualityValues[_qualityIndex].toInt()).attach(frame!.dataResponse).first;
+        // add the size and elapsed time to the image metadata widget
+        meta.size = imageData.length;
+        meta.elapsedTimeMs = _stopwatch.elapsedMilliseconds;
 
-        // received a whole-image Uint8List with jpeg header and footer included
-        _stopwatch.stop();
+        _log.fine(() => 'Image file size in bytes: ${imageData.length}, elapsedMs: ${_stopwatch.elapsedMilliseconds}');
 
-        try {
-          // NOTE: Frame camera is rotated 90 degrees clockwise, so if we need to make it upright for image processing:
-          // import 'package:image/image.dart' as image_lib;
-          // image_lib.Image? im = image_lib.decodeJpg(imageData);
-          // im = image_lib.copyRotate(im, angle: 270);
+        setState(() {
+          _image = im;
+          _imageMeta = meta;
+        });
 
-          // update Widget UI
-          Image im = Image.memory(imageData, gaplessPlayback: true,);
-
-          // add the size and elapsed time to the image metadata widget
-          meta.size = imageData.length;
-          meta.elapsedTimeMs = _stopwatch.elapsedMilliseconds;
-
-          _log.fine(() => 'Image file size in bytes: ${imageData.length}, elapsedMs: ${_stopwatch.elapsedMilliseconds}');
-
-          setState(() {
-            _image = im;
-            _imageMeta = meta;
-          });
-
-          // Perform vision processing pipeline
-
-        } catch (e) {
-          _log.severe('Error converting bytes to image: $e');
-          setState(() {
-            currentState = ApplicationState.ready;
-          });
-
-        }
+        // Perform vision processing pipeline
 
       } catch (e) {
-        _log.severe('Error executing application: $e');
+        _log.severe('Error converting bytes to image: $e');
         setState(() {
           currentState = ApplicationState.ready;
         });
+
       }
+
+    } catch (e) {
+      _log.severe('Error executing application: $e');
+      setState(() {
+        currentState = ApplicationState.ready;
+      });
     }
   }
 
   /// cancel the current photo
   @override
   Future<void> cancel() async {
+    setState(() {
+      currentState = ApplicationState.canceling;
+    });
+
+    // let Frame know to stop sending taps
+    await frame!.sendMessage(TxCode(msgCode: 0x10, value: 0));
+
+    // clear the display
+    await frame!.sendMessage(TxPlainText(msgCode: 0x0a, text: ' '));
+
     setState(() {
       currentState = ApplicationState.ready;
     });
