@@ -9,6 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  google_mlkit_text_recognition: ^0.13.0
+  image: ^4.3.0
+  image_mlkit_converter: ^0.0.1
   logging: ^1.2.0
   simple_frame_app: ^1.7.0
 

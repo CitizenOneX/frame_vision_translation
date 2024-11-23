@@ -3,9 +3,13 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:image/image.dart' as img;
+import 'package:image_mlkit_converter/image_mlkit_converter.dart';
 import 'package:logging/logging.dart';
 import 'package:simple_frame_app/rx/photo.dart';
 import 'package:simple_frame_app/rx/tap.dart';
+import 'package:simple_frame_app/text_utils.dart';
 import 'package:simple_frame_app/tx/camera_settings.dart';
 import 'package:simple_frame_app/simple_frame_app.dart';
 import 'package:simple_frame_app/tx/code.dart';
@@ -23,10 +27,14 @@ class MainApp extends StatefulWidget {
 }
 
 class MainAppState extends State<MainApp> with SimpleFrameAppState {
+  // the Google ML Kit text recognizer
+  late TextRecognizer _textRecognizer;
 
   // the image and metadata to show
   Image? _image;
   ImageMetadata? _imageMeta;
+  RecognizedText? _recognizedText;
+
   final Stopwatch _stopwatch = Stopwatch();
 
   // camera settings
@@ -49,11 +57,14 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
     Logger.root.onRecord.listen((record) {
       debugPrint('${record.level.name}: ${record.time}: ${record.message}');
     });
+
+    _textRecognizer = TextRecognizer();
   }
 
   @override
   void initState() {
     super.initState();
+
     // kick off the connection to Frame and start the app if possible
     tryScanAndConnectAndStart(andRun: true);
   }
@@ -125,11 +136,6 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
       _stopwatch.stop();
 
       try {
-        // NOTE: Frame camera is rotated 90 degrees clockwise, so if we need to make it upright for image processing:
-        // import 'package:image/image.dart' as image_lib;
-        // image_lib.Image? im = image_lib.decodeJpg(imageData);
-        // im = image_lib.copyRotate(im, angle: 270);
-
         // update Widget UI
         Image im = Image.memory(imageData, gaplessPlayback: true,);
 
@@ -145,6 +151,55 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState {
         });
 
         // Perform vision processing pipeline
+        try {
+          // will sometimes throw an Exception on decoding, but doesn't return null
+          _stopwatch.reset();
+          _stopwatch.start();
+          img.Image im = img.decodeJpg(imageData)!;
+          _stopwatch.stop();
+          _log.fine(() => 'Jpeg decoding took: ${_stopwatch.elapsedMilliseconds} ms');
+
+          // Android mlkit needs NV21 InputImage format
+          // iOS mlkit needs bgra8888 InputImage format
+          // In both cases orientation metadata is passed to mlkit, so no need to bake in a rotation
+          _stopwatch.reset();
+          _stopwatch.start();
+          // Frame images are rotated 90 degrees clockwise
+          InputImage mlkitImage = ImageMlkitConverter.imageToMlkitInputImage(im, InputImageRotation.rotation90deg);
+          _stopwatch.stop();
+          _log.fine(() => 'NV21/BGRA8888 conversion took: ${_stopwatch.elapsedMilliseconds} ms');
+
+          // run the text recognizer
+          _stopwatch.reset();
+          _stopwatch.start();
+          _recognizedText = await _textRecognizer.processImage(mlkitImage);
+          _stopwatch.stop();
+          _log.fine(() => 'Text recognition took: ${_stopwatch.elapsedMilliseconds} ms');
+
+          // display to Frame if text has been recognized
+          if (_recognizedText!.blocks.isNotEmpty) {
+
+            // TODO pagination requires an instance variable, tracking displayed lines etc.
+            List<String> frameText = [];
+            // loop over any text found
+            for (TextBlock block in _recognizedText!.blocks) {
+              frameText.add('${block.recognizedLanguages}: ${block.text}');
+            }
+
+            _log.fine(() => 'Text found: $frameText');
+
+            // print the detected barcodes on the Frame display
+            await frame!.sendMessage(
+              TxPlainText(
+                msgCode: 0x0a,
+                text: TextUtils.wrapText(frameText.join('\n'), 640, 4).join('\n')
+              )
+            );
+          }
+
+        } catch (e) {
+          _log.severe('Error converting bytes to image: $e');
+        }
 
       } catch (e) {
         _log.severe('Error converting bytes to image: $e');

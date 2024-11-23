@@ -25,7 +25,7 @@ if (flutterVersionName == null) {
 
 android {
     namespace = "com.example.frame_vision_textrecognition"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 34 // for google_mlkit_text_recognition
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -38,8 +38,8 @@ android {
         applicationId = "com.example.frame_vision_textrecognition"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
-        minSdk = 21 // for flutter_blue_plus
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 21 // for flutter_blue_plus and google_mlkit_text_recognition
+        targetSdk = 33 // for google_mlkit_text_recognition
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
     }
