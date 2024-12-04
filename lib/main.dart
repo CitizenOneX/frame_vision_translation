@@ -7,10 +7,11 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:image/image.dart' as img;
 import 'package:image_mlkit_converter/image_mlkit_converter.dart';
 import 'package:logging/logging.dart';
-import 'package:simple_frame_app/text_utils.dart';
 import 'package:simple_frame_app/simple_frame_app.dart';
 import 'package:simple_frame_app/frame_vision_app.dart';
 import 'package:simple_frame_app/tx/plain_text.dart';
+
+import 'text_pagination.dart';
 
 void main() => runApp(const MainApp());
 
@@ -32,6 +33,8 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
   ImageMetadata? _imageMeta;
   bool _processing = false;
   RecognizedText? _recognizedText;
+  final List<String> _recognizedTextList = [];
+  final TextPagination _pagination = TextPagination();
 
   final Stopwatch _stopwatch = Stopwatch();
 
@@ -69,7 +72,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
     await frame!.sendMessage(
       TxPlainText(
         msgCode: 0x0a,
-        text: '3-Tap: take photo'
+        text: '3-Tap: take photo\n______________\n1-Tap: next page\n2-Tap: previous page'
       )
     );
   }
@@ -77,6 +80,8 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
   @override
   Future<void> onCancel() async {
     _recognizedText = null;
+    _recognizedTextList.clear();
+    _pagination.clear();
   }
 
   @override
@@ -84,9 +89,23 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
     switch (taps) {
       case 1:
         // next
+        _pagination.nextPage();
+        frame!.sendMessage(
+          TxPlainText(
+            msgCode: 0x0a,
+            text: _pagination.getCurrentPage().join('\n')
+          )
+        );
         break;
       case 2:
         // prev
+        _pagination.previousPage();
+        frame!.sendMessage(
+          TxPlainText(
+            msgCode: 0x0a,
+            text: _pagination.getCurrentPage().join('\n')
+          )
+        );
         break;
       case 3:
         // check if there's processing in progress already and drop the request if so
@@ -105,6 +124,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
   FutureOr<void> process((Uint8List, ImageMetadata) photo) async {
     var imageData = photo.$1;
     var meta = photo.$2;
+    _recognizedTextList.clear();
 
     try {
       // update Widget UI
@@ -145,8 +165,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
         // display to Frame if text has been recognized
         if (_recognizedText!.blocks.isNotEmpty) {
 
-          // TODO pagination requires an instance variable, tracking displayed lines etc.
-          List<String> frameText = [];
+          _pagination.clear();
 
           // (reverse) sort the text blocks, that seem to come back kind of bottom to top but not really
           var sortedTextBlocks = _recognizedText!.blocks..sort((a, b) => b.boundingBox.top.compareTo(a.boundingBox.top));
@@ -158,16 +177,16 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
             var sortedTextStrings = sortedTextLines.map((result) => result.text).toList();
 
             // then add the text from this block
-            frameText.add(sortedTextStrings.join('\n'));
+            _pagination.appendLine(sortedTextStrings.join('\n'));
           }
 
-          _log.fine(() => 'Text found: $frameText');
+          _log.fine(() => 'Text found: $_pagination');
 
           // print the detected barcodes on the Frame display
           await frame!.sendMessage(
             TxPlainText(
               msgCode: 0x0a,
-              text: TextUtils.wrapText(frameText.join('\n'), 640, 4).join('\n')
+              text: _pagination.getCurrentPage().join('\n')
             )
           );
         }
