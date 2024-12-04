@@ -65,7 +65,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
   }
 
   @override
-  Future<void> printInstructions() async {
+  Future<void> onRun() async {
     await frame!.sendMessage(
       TxPlainText(
         msgCode: 0x0a,
@@ -75,7 +75,12 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
   }
 
   @override
-  Future<void> tapHandler(int taps) async {
+  Future<void> onCancel() async {
+    _recognizedText = null;
+  }
+
+  @override
+  Future<void> onTap(int taps) async {
     switch (taps) {
       case 1:
         // next
@@ -142,9 +147,18 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
 
           // TODO pagination requires an instance variable, tracking displayed lines etc.
           List<String> frameText = [];
+
+          // (reverse) sort the text blocks, that seem to come back kind of bottom to top but not really
+          var sortedTextBlocks = _recognizedText!.blocks..sort((a, b) => b.boundingBox.top.compareTo(a.boundingBox.top));
+
           // loop over any text found
-          for (TextBlock block in _recognizedText!.blocks) {
-            frameText.add('${block.recognizedLanguages}: ${block.text}');
+          for (TextBlock block in sortedTextBlocks) {
+            // (reverse) sort the text lines within the block by y-coordinate too
+            var sortedTextLines = block.lines..sort((a, b) => b.boundingBox.top.compareTo(a.boundingBox.top));
+            var sortedTextStrings = sortedTextLines.map((result) => result.text).toList();
+
+            // then add the text from this block
+            frameText.add(sortedTextStrings.join('\n'));
           }
 
           _log.fine(() => 'Text found: $frameText');

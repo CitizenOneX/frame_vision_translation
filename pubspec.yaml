@@ -13,7 +13,7 @@ dependencies:
   image: ^4.3.0
   image_mlkit_converter: ^0.0.1
   logging: ^1.2.0
-  simple_frame_app: ^1.8.0
+  simple_frame_app: ^2.0.0
 
 dev_dependencies:
   flutter_test:
