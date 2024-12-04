@@ -7,6 +7,7 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:image/image.dart' as img;
 import 'package:image_mlkit_converter/image_mlkit_converter.dart';
 import 'package:logging/logging.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:simple_frame_app/simple_frame_app.dart';
 import 'package:simple_frame_app/frame_vision_app.dart';
 import 'package:simple_frame_app/tx/plain_text.dart';
@@ -30,6 +31,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
 
   // the image and metadata to show
   Image? _image;
+  Uint8List? _uprightImageBytes;
   ImageMetadata? _imageMeta;
   bool _processing = false;
   RecognizedText? _recognizedText;
@@ -127,6 +129,18 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
     _recognizedTextList.clear();
 
     try {
+      // NOTE: Frame camera is rotated 90 degrees clockwise,
+      // so we need to make it upright for share_plus sharing.
+      img.Image? imgIm = img.decodeJpg(imageData);
+      if (imgIm == null) {
+        // if the photo is malformed, just bail out
+        throw Exception('Error decoding photo');
+      }
+
+      // perform the rotation and re-encode as JPEG
+      imgIm = img.copyRotate(imgIm, angle: 270);
+      _uprightImageBytes = img.encodeJpg(imgIm);
+
       // update Widget UI
       // For the widget we rotate it upon display with a transform, not changing the source image
       Image im = Image.memory(imageData, gaplessPlayback: true,);
@@ -177,12 +191,16 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
             var sortedTextStrings = sortedTextLines.map((result) => result.text).toList();
 
             // then add the text from this block
-            _pagination.appendLine(sortedTextStrings.join('\n'));
+            _recognizedTextList.addAll(sortedTextStrings);
+            for (var line in sortedTextStrings) {
+              _pagination.appendLine(line);
+            }
           }
 
-          _log.fine(() => 'Text found: $_pagination');
+          _log.fine(() => 'Text found: $_recognizedTextList');
+          setState(() {});
 
-          // print the detected barcodes on the Frame display
+          // print the detected text on the Frame display
           await frame!.sendMessage(
             TxPlainText(
               msgCode: 0x0a,
@@ -199,11 +217,31 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
       _processing = false;
 
     } catch (e) {
-      _log.severe('Error processing photo: $e');
+      String err = 'Error processing photo: $e';
+      _log.fine(err);
+      setState(() {
+        _recognizedTextList.add(err);
+      });
+      _processing = false;
       // TODO rethrow;?
     }
   }
 
+  /// Use the platform Share mechanism to share the image and the generated text
+  static void _shareImage(Uint8List? jpegBytes, String text) async {
+    if (jpegBytes != null) {
+      try {
+        // Share the image bytes as a JPEG file
+        await Share.shareXFiles(
+          [XFile.fromData(jpegBytes, mimeType: 'image/jpeg', name: 'image.jpg')],
+          text: text,
+        );
+      }
+      catch (e) {
+        _log.severe('Error preparing image for sharing: $e');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -218,23 +256,59 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
         drawer: getCameraDrawer(),
         body: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: [
-                  Transform(
-                    alignment: Alignment.center,
-                    // images are rotated 90 degrees clockwise from the Frame
-                    // so reverse that for display
-                    transform: Matrix4.rotationZ(-pi*0.5),
-                    child: _image,
+            Expanded(
+            child: GestureDetector(
+              onTap: () {
+                if (_uprightImageBytes != null) {
+                  _shareImage(_uprightImageBytes, _recognizedTextList.join('\n'));
+                }
+              },
+              child: CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Transform(
+                        alignment: Alignment.center,
+                        // images are rotated 90 degrees clockwise from the Frame
+                        // so reverse that for display
+                        transform: Matrix4.rotationZ(-pi*0.5),
+                        child: _image,
+                      ),
+                    ),
                   ),
-                  const Divider(),
-                  if (_imageMeta != null) _imageMeta!,
+                  if (_imageMeta != null)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(children: [
+                          _imageMeta!,
+                          const Divider()
+                        ]),
+                      ),
+                    ),
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                          ),
+                          child: Text(_recognizedTextList[index]),
+                        );
+                      },
+                      childCount: _recognizedTextList.length,
+                    ),
+                  ),
+                  // This ensures the list can grow dynamically
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Container(), // Empty container to allow scrolling
+                  ),
                 ],
-              )
+              ),
             ),
-            const Divider(),
+          ),
           ],
         ),
         floatingActionButton: getFloatingActionButtonWidget(const Icon(Icons.camera_alt), const Icon(Icons.cancel)),
