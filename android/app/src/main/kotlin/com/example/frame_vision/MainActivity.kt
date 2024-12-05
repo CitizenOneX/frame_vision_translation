@@ -1,4 +1,4 @@
-package com.example.frame_vision_textrecognition
+package com.example.frame_vision_translation
 
 import io.flutter.embedding.android.FlutterActivity
 
