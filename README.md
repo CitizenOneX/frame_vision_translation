@@ -1,3 +1,3 @@
-# Frame Vision Text Recognition
+# Frame Vision Translation
 
-Uses Google ML Kit Text Recognition to extract text from images taken from Brilliant Labs Frame
+Uses the Brilliant Labs Frame camera to take a picture that includes some text, uses Google ML Kit text recognition then translation to translate the text and display it on Frame

@@ -1,5 +1,5 @@
-name: frame_vision_textrecognition
-description: "Foundation for Frame Vision apps. Takes repeated snapshots and feeds into a machine vision pipeline."
+name: frame_vision_translation
+description: "Uses the Brilliant Labs Frame camera to take a picture that includes some text, uses Google ML Kit text recognition then translation to translate the text and display it on Frame"
 publish_to: 'none'
 version: 0.1.0
 

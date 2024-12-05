@@ -246,11 +246,11 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Frame Vision Text Recognition',
+      title: 'Frame Vision Translation',
       theme: ThemeData.dark(),
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('Frame Vision Text Recognition'),
+          title: const Text('Frame Vision Translation'),
           actions: [getBatteryWidget()]
         ),
         drawer: getCameraDrawer(),
