@@ -7,7 +7,7 @@ plugins {
 
 dependencies {
     // Add language package you need to use
-    implementation 'com.google.mlkit:text-recognition-chinese:16.0.0'
+    implementation 'com.google.mlkit:text-recognition-japanese:16.0.0'
 }
 
 def localProperties = new Properties()

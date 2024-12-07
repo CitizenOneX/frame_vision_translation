@@ -28,9 +28,9 @@ class MainApp extends StatefulWidget {
 
 class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionAppState {
   // the Google ML Kit text recognizer and translator
-  final _textRecognizer = TextRecognizer(script: TextRecognitionScript.chinese);
+  final _textRecognizer = TextRecognizer(script: TextRecognitionScript.japanese);
   final _translator = OnDeviceTranslator(
-    sourceLanguage: TranslateLanguage.chinese,
+    sourceLanguage: TranslateLanguage.japanese,
     targetLanguage: TranslateLanguage.english);
 
   // the image and metadata to show
