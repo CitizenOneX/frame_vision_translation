@@ -1,6 +1,8 @@
 # Frame Vision Translation
 
-Uses the Brilliant Labs Frame camera to take a picture that includes some text, uses Google ML Kit text recognition then translation to translate the text and display it on Frame
+Uses the Brilliant Labs Frame camera to take a picture that includes some text, uses Google ML Kit text recognition then translation to translate the text and display it on Frame. All processing is done with local on-device models on the phone and takes about 3 seconds from triple-tap to display.
+
+This demo currently only performs Japanese to English translation, although other script is possible. (Some screenshots show images from when Chinese/English was specified.)
 
 ### Frameshots
 ![Frameshot1](docs/frameshot1.png)
@@ -10,6 +12,7 @@ Uses the Brilliant Labs Frame camera to take a picture that includes some text, 
 
 ### Framecast
 
+https://github.com/user-attachments/assets/19538773-a0c0-47b2-8d23-7e9fd5c66f6a
 
 ### Screenshots
 ![Screenshot1](docs/screenshot1.png)
