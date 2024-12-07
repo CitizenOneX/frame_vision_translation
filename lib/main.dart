@@ -27,8 +27,11 @@ class MainApp extends StatefulWidget {
 }
 
 class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionAppState {
-  // the Google ML Kit text recognizer
-  late TextRecognizer _textRecognizer;
+  // the Google ML Kit text recognizer and translator
+  final _textRecognizer = TextRecognizer(script: TextRecognitionScript.chinese);
+  final _translator = OnDeviceTranslator(
+    sourceLanguage: TranslateLanguage.chinese,
+    targetLanguage: TranslateLanguage.english);
 
   // the image and metadata to show
   Image? _image;
@@ -40,20 +43,13 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
   final List<String> _translatedTextList = [];
   final TextPagination _pagination = TextPagination();
 
-  final _translator = OnDeviceTranslator(
-    sourceLanguage: TranslateLanguage.chinese,
-    targetLanguage: TranslateLanguage.english);
-
   final Stopwatch _stopwatch = Stopwatch();
 
   MainAppState() {
-    Logger.root.level = Level.INFO;
+    Logger.root.level = Level.FINE;
     Logger.root.onRecord.listen((record) {
       debugPrint('${record.level.name}: ${record.time}: ${record.message}');
     });
-
-    // initialize the TextRecognizer
-    _textRecognizer = TextRecognizer(script: TextRecognitionScript.chinese);
   }
 
   @override
@@ -192,22 +188,20 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
           // (reverse) sort the text blocks, that seem to come back kind of bottom to top but not really
           var sortedTextBlocks = _recognizedText!.blocks..sort((a, b) => b.boundingBox.top.compareTo(a.boundingBox.top));
 
-          // loop over any text found
+          // loop over any text found and translate block by block
           for (TextBlock block in sortedTextBlocks) {
             // (reverse) sort the text lines within the block by y-coordinate too
             var sortedTextLines = block.lines..sort((a, b) => b.boundingBox.top.compareTo(a.boundingBox.top));
             var sortedTextStrings = sortedTextLines.map((result) => result.text).toList();
 
             // then add the text from this block
-            _recognizedTextList.addAll(sortedTextStrings);
+            var fullBlockText = sortedTextStrings.join('\n');
+            var translatedBlock = await _translator.translateText(fullBlockText);
+
+            _recognizedTextList.add(fullBlockText);
+            _translatedTextList.add(translatedBlock);
+            _pagination.appendLine(translatedBlock);
           }
-
-          var fullSourceText = _recognizedTextList.join('\n');
-
-          var translatedText = await _translator.translateText(fullSourceText);
-
-          _translatedTextList.add(translatedText);
-          _pagination.appendLine(translatedText);
 
           _log.fine(() => 'Text found: $_recognizedTextList, $_translatedTextList');
           setState(() {});
