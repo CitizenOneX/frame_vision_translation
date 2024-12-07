@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:google_mlkit_translation/google_mlkit_translation.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_mlkit_converter/image_mlkit_converter.dart';
 import 'package:logging/logging.dart';
@@ -36,24 +37,30 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
   bool _processing = false;
   RecognizedText? _recognizedText;
   final List<String> _recognizedTextList = [];
+  final List<String> _translatedTextList = [];
   final TextPagination _pagination = TextPagination();
+
+  final _translator = OnDeviceTranslator(
+    sourceLanguage: TranslateLanguage.chinese,
+    targetLanguage: TranslateLanguage.english);
 
   final Stopwatch _stopwatch = Stopwatch();
 
   MainAppState() {
-    Logger.root.level = Level.FINE;
+    Logger.root.level = Level.INFO;
     Logger.root.onRecord.listen((record) {
       debugPrint('${record.level.name}: ${record.time}: ${record.message}');
     });
 
     // initialize the TextRecognizer
-    _textRecognizer = TextRecognizer();
+    _textRecognizer = TextRecognizer(script: TextRecognitionScript.chinese);
   }
 
   @override
   void dispose() async {
-    // clean up the TextRecognizer resources
+    // clean up the ML Kit resources
     await _textRecognizer.close();
+    await _translator.close();
 
     super.dispose();
   }
@@ -127,6 +134,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
     var imageData = photo.$1;
     var meta = photo.$2;
     _recognizedTextList.clear();
+    _translatedTextList.clear();
 
     try {
       // NOTE: Frame camera is rotated 90 degrees clockwise,
@@ -192,12 +200,16 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
 
             // then add the text from this block
             _recognizedTextList.addAll(sortedTextStrings);
-            for (var line in sortedTextStrings) {
-              _pagination.appendLine(line);
-            }
           }
 
-          _log.fine(() => 'Text found: $_recognizedTextList');
+          var fullSourceText = _recognizedTextList.join('\n');
+
+          var translatedText = await _translator.translateText(fullSourceText);
+
+          _translatedTextList.add(translatedText);
+          _pagination.appendLine(translatedText);
+
+          _log.fine(() => 'Text found: $_recognizedTextList, $_translatedTextList');
           setState(() {});
 
           // print the detected text on the Frame display
@@ -260,7 +272,7 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
             child: GestureDetector(
               onTap: () {
                 if (_uprightImageBytes != null) {
-                  _shareImage(_uprightImageBytes, _recognizedTextList.join('\n'));
+                  _shareImage(_uprightImageBytes, '${_recognizedTextList.join('\n')}\n${_translatedTextList.join('\n')}');
                 }
               },
               child: CustomScrollView(
@@ -294,10 +306,10 @@ class MainAppState extends State<MainApp> with SimpleFrameAppState, FrameVisionA
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16.0,
                           ),
-                          child: Text(_recognizedTextList[index]),
+                          child: Text(_translatedTextList[index]),
                         );
                       },
-                      childCount: _recognizedTextList.length,
+                      childCount: _translatedTextList.length,
                     ),
                   ),
                   // This ensures the list can grow dynamically

@@ -18,7 +18,13 @@ data.parsers[TAP_SUBS_MSG] = code.parse_code
 TAP_MSG = 0x09
 
 function handle_tap()
-	pcall(frame.bluetooth.send, string.char(TAP_MSG))
+	rc, err = pcall(frame.bluetooth.send, string.char(TAP_MSG))
+
+	if rc == false then
+		-- send the error back on the stdout stream
+		print(err)
+	end
+
 end
 
 -- draw the current text on the display
@@ -38,6 +44,13 @@ function clear_display()
     frame.sleep(0.04)
 end
 
+function show_flash()
+    frame.display.bitmap(241, 191, 160, 2, 0, string.rep("\xFF", 400))
+    frame.display.bitmap(311, 121, 20, 2, 0, string.rep("\xFF", 400))
+    frame.display.show()
+    frame.sleep(0.04)
+end
+
 -- Main app loop
 function app_loop()
 	clear_display()
@@ -52,7 +65,10 @@ function app_loop()
 				if items_ready > 0 then
 
 					if (data.app_data[CAMERA_SETTINGS_MSG] ~= nil) then
+						-- visual indicator of capture and send
+						show_flash()
 						rc, err = pcall(camera.camera_capture_and_send, data.app_data[CAMERA_SETTINGS_MSG])
+						clear_display()
 
 						if rc == false then
 							print(err)
@@ -72,9 +88,11 @@ function app_loop()
 
 						if data.app_data[TAP_SUBS_MSG].value == 1 then
 							-- start subscription to tap events
+							print('subscribing for taps')
 							frame.imu.tap_callback(handle_tap)
 						else
 							-- cancel subscription to tap events
+							print('cancel subscription for taps')
 							frame.imu.tap_callback(nil)
 						end
 
